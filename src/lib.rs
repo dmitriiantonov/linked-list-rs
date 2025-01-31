@@ -1,51 +1,95 @@
 use std::marker::PhantomData;
 use std::ptr::NonNull;
 
+/// A type alias for a nullable pointer to a `Node<T>`.
 type Link<T> = Option<NonNull<Node<T>>>;
 
+/// Represents a node in the doubly linked list.
 #[derive(Debug)]
 struct Node<T> {
+    /// The value stored in the node.
     element: T,
+    /// Pointer to the next node in the list.
     next: Option<NonNull<Node<T>>>,
+    /// Pointer to the previous node in the list.
     prev: Option<NonNull<Node<T>>>,
 }
 
+/// A doubly linked list.
+///
+/// This list allows insertion and deletion from both ends in constant time.
 pub struct LinkedList<T> {
+    /// Pointer to the first node in the list.
     head: Link<T>,
+    /// Pointer to the last node in the list.
     tail: Link<T>,
+    /// Number of elements in the list.
     len: usize,
+    /// Marker to indicate ownership of `T` without actually storing it.
     _marker: PhantomData<T>,
 }
 
+/// An iterator that consumes the linked list.
 pub struct IntoIter<T> {
+    /// The linked list being iterated over.
     list: LinkedList<T>,
 }
 
+/// An immutable iterator over the linked list.
 pub struct Iter<'a, T: 'a> {
+    /// Pointer to the first node in the iteration.
     head: Option<NonNull<Node<T>>>,
+    /// Pointer to the last node in the iteration.
     tail: Option<NonNull<Node<T>>>,
+    /// Number of elements remaining in the iterator.
     len: usize,
+    /// Marker to indicate borrowing of `Node<T>`.
     _marker: PhantomData<&'a Node<T>>,
 }
 
+/// A mutable iterator over the linked list.
 pub struct IterMut<'a, T: 'a> {
+    /// Pointer to the first node in the iteration.
     head: Option<NonNull<Node<T>>>,
+    /// Pointer to the last node in the iteration.
     tail: Option<NonNull<Node<T>>>,
+    /// Number of elements remaining in the iterator.
     len: usize,
+    /// Marker to indicate mutable borrowing of `Node<T>`.
     _marker: PhantomData<&'a mut Node<T>>,
 }
 
+pub struct Cursor<'a, T: 'a> {
+    index: usize,
+    current: Option<NonNull<Node<T>>>,
+    list: &'a LinkedList<T>,
+}
+
+pub struct CursorMut<'a, T: 'a> {
+    index: usize,
+    current: Option<NonNull<Node<T>>>,
+    list: &'a mut LinkedList<T>,
+}
+
 impl<T> Node<T> {
-    fn new(elem: T) -> Self {
+    /// Creates a new node with the given element.
+    ///
+    /// # Arguments
+    /// * `element` - The value to be stored in the node.
+    fn new(element: T) -> Self {
         Self {
-            element: elem,
+            element,
             next: None,
             prev: None,
         }
     }
 }
 
+/// A doubly linked list implementation.
+///
+/// This linked list allows insertion and deletion from both ends in constant time.
 impl<T> LinkedList<T> {
+    /// Creates a new empty linked list.
     #[inline]
     pub fn new() -> Self {
         Self {
@@ -56,17 +100,22 @@ impl<T> LinkedList<T> {
         }
     }
 
+    /// Returns the number of elements in the linked list.
     #[inline]
     pub fn len(&self) -> usize {
         self.len
     }
 
+    /// Returns `true` if the linked list contains no elements.
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.len == 0
     }
 
-    /// Add a new node to the front of the linked list
+    /// Adds an element to the front of the list.
+    ///
+    /// # Arguments
+    /// * `value` - The value to insert at the front.
     pub fn push_front(&mut self, value: T) {
         let new_head = NonNull::from(Box::leak(Box::new(Node::new(value))));
 
@@ -84,7 +133,10 @@ impl<T> LinkedList<T> {
         self.len += 1;
     }
 
-    /// Add a new node to the back of the linked list
+    /// Adds an element to the back of the list.
+    ///
+    /// # Arguments
+    /// * `value` - The value to insert at the back.
     pub fn push_back(&mut self, value: T) {
         let new_tail = NonNull::from(Box::leak(Box::new(Node::new(value))));
 
@@ -102,6 +154,7 @@ impl<T> LinkedList<T> {
         self.len += 1;
     }
 
+    /// Removes and returns the element from the front of the list.
     pub fn pop_front(&mut self) -> Option<T> {
         self.head.take().map(|old_head| unsafe {
             let mut old_head = Box::from_raw(old_head.as_ptr());
@@ -122,6 +175,7 @@ impl<T> LinkedList<T> {
         })
     }
 
+    /// Removes and returns the element from the back of the list.
     pub fn pop_back(&mut self) -> Option<T> {
         self.tail.take().map(|old_tail| unsafe {
             let mut old_tail = Box::from_raw(old_tail.as_ptr());
@@ -142,28 +196,33 @@ impl<T> LinkedList<T> {
         })
     }
 
+    /// Returns a reference to the first element of the list, if any.
     #[inline]
     pub fn front(&self) -> Option<&T> {
         self.head.map(|node| unsafe { &(*node.as_ptr()).element })
     }
 
+    /// Returns a mutable reference to the first element of the list, if any.
     #[inline]
     pub fn front_mut(&mut self) -> Option<&mut T> {
         self.head
             .map(|node| unsafe { &mut (*node.as_ptr()).element })
     }
 
+    /// Returns a reference to the last element of the list, if any.
     #[inline]
     pub fn back(&self) -> Option<&T> {
         self.tail.map(|node| unsafe { &(*node.as_ptr()).element })
     }
 
+    /// Returns a mutable reference to the last element of the list, if any.
     #[inline]
     pub fn back_mut(&mut self) -> Option<&mut T> {
         self.tail
             .map(|node| unsafe { &mut (*node.as_ptr()).element })
     }
 
+    /// Returns an iterator over the elements of the list.
     #[inline]
     pub fn iter(&self) -> Iter<T> {
         Iter {
@@ -174,6 +233,7 @@ impl<T> LinkedList<T> {
         }
     }
 
+    /// Returns a mutable iterator over the elements of the list.
     #[inline]
     pub fn iter_mut(&mut self) -> IterMut<T> {
         IterMut {
@@ -183,9 +243,15 @@ impl<T> LinkedList<T> {
             _marker: Default::default(),
         }
     }
+
+    #[inline]
+    pub fn cursor(&mut self) -> Cursor<T> {
+        Cursor::new(self)
+    }
 }
 
 impl<T> Default for LinkedList<T> {
+    #[inline]
     fn default() -> Self {
         LinkedList::new()
     }
@@ -195,12 +261,14 @@ impl<T> IntoIterator for LinkedList<T> {
     type Item = T;
     type IntoIter = IntoIter<T>;
 
+    #[inline]
     fn into_iter(self) -> Self::IntoIter {
         IntoIter { list: self }
     }
 }
 
 impl<T> Drop for LinkedList<T> {
+    #[inline]
     fn drop(&mut self) {
         while self.pop_back().is_some() {}
     }
@@ -286,6 +354,76 @@ impl<'a, T: 'a> DoubleEndedIterator for IterMut<'a, T> {
                 self.tail = node.prev;
                 &mut node.element
             })
+        }
+    }
+}
+
+impl<'a, T: 'a> Cursor<'a, T> {
+    #[inline]
+    pub fn new(list: &'a LinkedList<T>) -> Self {
+        Self {
+            index: 0,
+            current: None,
+            list,
+        }
+    }
+
+    #[inline]
+    pub fn index(&self) -> Option<usize> {
+        self.current.map(|_| self.index)
+    }
+
+    #[inline]
+    pub fn current(&self) -> Option<&T> {
+        self.current
+            .map(|node| unsafe { &(*node.as_ptr()).element })
+    }
+
+    pub fn move_next(&mut self) {
+        match self.current {
+            None => {
+                self.current = self.list.head;
+                self.index = 0;
+            }
+            Some(current) => unsafe {
+                self.current = current.as_ref().next;
+                self.index += 1;
+            },
+        }
+    }
+
+    pub fn move_prev(&mut self) {
+        match self.current {
+            None => {
+                self.current = self.list.tail;
+                self.index = self.list.len().saturating_sub(1)
+            }
+            Some(current) => unsafe {
+                self.current = current.as_ref().prev;
+                self.index = self.index.saturating_sub(1)
+            },
+        }
+    }
+
+
+    pub fn peek_next(&self) -> Option<&T> {
+        unsafe {
+            let next = match self.current {
+                None => self.list.head,
+                Some(node) => node.as_ref().next,
+            };
+            next.map(|node| &(*node.as_ptr()).element)
+        }
+    }
+
+
+    pub fn peek_prev(&self) -> Option<&T> {
+        unsafe {
+            let prev = match self.current {
+                None => self.list.tail,
+                Some(current) => current.as_ref().prev,
+            };
+            prev.map(|node| &(*node.as_ptr()).element)
         }
     }
 }
@@ -463,5 +601,60 @@ mod tests {
         assert_eq!(iter.next_back(), Some(4));
         assert_eq!(iter.next(), Some(3));
         assert_eq!(iter.next_back(), None);
+    }
+
+    #[test]
+    fn test_cursor() {
+        let mut list = LinkedList::from([1, 2, 3]);
+        let mut cursor = list.cursor();
+
+        assert_eq!(cursor.current(), None);
+
+        assert_eq!(cursor.peek_next(), Some(&1));
+
+        cursor.move_next();
+
+        assert_eq!(cursor.current(), Some(&1));
+        assert_eq!(cursor.index(), Some(0));
+
+        assert_eq!(cursor.peek_next(), Some(&2));
+
+        cursor.move_next();
+
+        assert_eq!(cursor.current(), Some(&2));
+        assert_eq!(cursor.index(), Some(1));
+
+        assert_eq!(cursor.peek_next(), Some(&3));
+
+        cursor.move_next();
+
+        assert_eq!(cursor.current(), Some(&3));
+        assert_eq!(cursor.index(), Some(2));
+        
+        assert_eq!(cursor.peek_next(), None);
+
+        cursor.move_next();
+        assert_eq!(cursor.current(), None);
+        
+        assert_eq!(cursor.peek_prev(), Some(&3));
+
+        cursor.move_prev();
+
+        assert_eq!(cursor.current(), Some(&3));
+        assert_eq!(cursor.index(), Some(2));
+
+        assert_eq!(cursor.peek_prev(), Some(&2));
+
+        cursor.move_prev();
+
+        assert_eq!(cursor.current(), Some(&2));
+        assert_eq!(cursor.index(), Some(1));
+
+        assert_eq!(cursor.peek_prev(), Some(&1));
+
+        cursor.move_prev();
+
+        assert_eq!(cursor.current(), Some(&1));
+        assert_eq!(cursor.index(), Some(0));
     }
 }

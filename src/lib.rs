@@ -3,13 +3,13 @@ use std::ptr::NonNull;
 
 /// A type alias for a nullable pointer to a `Node<T>`.
 ///
-/// This type alias is used to represent a nullable pointer to a node, 
+/// This type alias is used to represent a nullable pointer to a node,
 /// making it easier to work with linked list pointers.
 type Link<T> = Option<NonNull<Node<T>>>;
 
 /// Represents a node in the doubly linked list.
 ///
-/// Each node contains a value (`element`), a pointer to the next node (`next`), 
+/// Each node contains a value (`element`), a pointer to the next node (`next`),
 /// and a pointer to the previous node (`prev`), enabling bidirectional traversal of the list.
 ///
 /// # Fields
@@ -58,7 +58,7 @@ pub struct LinkedList<T> {
 
 /// An iterator that consumes the linked list.
 ///
-/// The `IntoIter` struct consumes the linked list as it iterates, meaning the list is moved 
+/// The `IntoIter` struct consumes the linked list as it iterates, meaning the list is moved
 /// and cannot be accessed after the iteration starts.
 ///
 /// # Fields
@@ -104,7 +104,7 @@ pub struct IterMut<'a, T: 'a> {
 
 /// A cursor for immutable access to the nodes of a `LinkedList`.
 ///
-/// The `Cursor` struct provides an iterator-like interface for traversing a `LinkedList` without modifying it. 
+/// The `Cursor` struct provides an iterator-like interface for traversing a `LinkedList` without modifying it.
 /// You can use it to access the elements of the list and move through the list sequentially.
 ///
 /// # Fields
@@ -125,7 +125,7 @@ pub struct Cursor<'a, T: 'a> {
 
 /// A cursor for mutable access to the nodes of a `LinkedList`.
 ///
-/// The `CursorMut` struct allows both reading from and modifying the nodes of a `LinkedList`. 
+/// The `CursorMut` struct allows both reading from and modifying the nodes of a `LinkedList`.
 /// It provides an iterator-like interface with the ability to change the state of the list as you traverse it.
 ///
 /// # Fields
@@ -436,7 +436,36 @@ impl<'a, T: 'a> DoubleEndedIterator for IterMut<'a, T> {
     }
 }
 
+/// Moves the cursor to the next element in the list.
+fn move_next<T>(current: &mut Link<T>, index: &mut  usize, list: &LinkedList<T>) {
+    match current {
+        None => {
+            *current = list.head;
+            *index = 0;
+        }
+        Some(node) => unsafe {
+            *current = node.as_ref().next;
+            *index += 1;
+        },
+    }
+}
+
+/// Moves the cursor to the previous element in the list.
+fn move_prev<T>(current: &mut Link<T>, index: &mut  usize, list: &LinkedList<T>) {
+    match current {
+        None => {
+           *current = list.tail;
+           *index = list.len().saturating_sub(1)
+        }
+        Some(node) => unsafe {
+            *current = node.as_ref().prev;
+            *index = index.saturating_sub(1)
+        },
+    }
+}
+
 impl<'a, T: 'a> Cursor<'a, T> {
+    /// Creates a new `Cursor` positioned at the start of the list.
     #[inline]
     pub fn new(list: &'a LinkedList<T>) -> Self {
         Self {
@@ -446,43 +475,30 @@ impl<'a, T: 'a> Cursor<'a, T> {
         }
     }
 
+    /// Returns the current index if the cursor is pointing to an element.
     #[inline]
     pub fn index(&self) -> Option<usize> {
         self.current.map(|_| self.index)
     }
 
+    /// Returns a reference to the current element, if any.
     #[inline]
     pub fn current(&mut self) -> Option<&'a T> {
         self.current
             .map(|node| unsafe { &(*node.as_ptr()).element })
     }
 
+    /// Moves the cursor to the next element in the list.
     pub fn move_next(&mut self) {
-        match self.current {
-            None => {
-                self.current = self.list.head;
-                self.index = 0;
-            }
-            Some(current) => unsafe {
-                self.current = current.as_ref().next;
-                self.index += 1;
-            },
-        }
+        move_next(&mut self.current, &mut self.index, self.list);
     }
 
+    /// Moves the cursor to the previous element in the list.
     pub fn move_prev(&mut self) {
-        match self.current {
-            None => {
-                self.current = self.list.tail;
-                self.index = self.list.len().saturating_sub(1)
-            }
-            Some(current) => unsafe {
-                self.current = current.as_ref().prev;
-                self.index = self.index.saturating_sub(1)
-            },
-        }
+        move_prev(&mut self.current, &mut self.index, self.list);
     }
 
+    /// Peeks at the next element without moving the cursor.
     pub fn peek_next(&self) -> Option<&'a T> {
         unsafe {
             let next = match self.current {
@@ -493,6 +509,7 @@ impl<'a, T: 'a> Cursor<'a, T> {
         }
     }
 
+    /// Peeks at the previous element without moving the cursor.
     pub fn peek_prev(&self) -> Option<&'a T> {
         unsafe {
             let prev = match self.current {
@@ -505,6 +522,7 @@ impl<'a, T: 'a> Cursor<'a, T> {
 }
 
 impl<'a, T: 'a> CursorMut<'a, T> {
+    /// Creates a new `CursorMut` positioned at the start of the list.
     #[inline]
     pub fn new(list: &'a mut LinkedList<T>) -> Self {
         Self {
@@ -514,44 +532,31 @@ impl<'a, T: 'a> CursorMut<'a, T> {
         }
     }
 
+    /// Returns the current index if the cursor is pointing to an element.
     #[inline]
     pub fn index(&mut self) -> Option<usize> {
         let _ = self.current?;
         Some(self.index)
     }
 
+    /// Returns a mutable reference to the current element, if any.
     #[inline]
     pub fn current(&mut self) -> Option<&'a mut T> {
         self.current
             .map(|node| unsafe { &mut (*node.as_ptr()).element })
     }
 
+    /// Moves the cursor to the next element in the list.
     pub fn move_next(&mut self) {
-        match self.current {
-            None => {
-                self.current = self.list.head;
-                self.index = 0;
-            }
-            Some(current) => unsafe {
-                self.current = current.as_ref().next;
-                self.index += 1;
-            },
-        }
+        move_next(&mut self.current, &mut self.index, self.list);
     }
 
+    /// Moves the cursor to the previous element in the list.
     pub fn move_prev(&mut self) {
-        match self.current {
-            None => {
-                self.current = self.list.tail;
-                self.index = self.list.len().saturating_sub(1)
-            }
-            Some(current) => unsafe {
-                self.current = current.as_ref().prev;
-                self.index = self.index.saturating_sub(1)
-            },
-        }
+        move_prev(&mut self.current, &mut self.index, self.list);
     }
 
+    /// Peeks at the next element without moving the cursor.
     pub fn peek_next(&self) -> Option<&'a mut T> {
         unsafe {
             let next = match self.current {
@@ -563,6 +568,7 @@ impl<'a, T: 'a> CursorMut<'a, T> {
         }
     }
 
+    /// Peeks at the previous element without moving the cursor.
     pub fn peek_prev(&self) -> Option<&'a mut T> {
         unsafe {
             let prev = match self.current {
@@ -574,6 +580,7 @@ impl<'a, T: 'a> CursorMut<'a, T> {
         }
     }
 
+    /// Deletes the current element and moves the cursor to the next element.
     pub fn delete(&mut self) -> Option<T> {
         unsafe {
             self.current.map(|node| {
@@ -607,6 +614,7 @@ impl<'a, T: 'a> CursorMut<'a, T> {
         }
     }
 
+    /// Inserts an element before the current position.
     pub fn insert_before(&mut self, element: T) {
         match self.current {
             None => {
@@ -630,10 +638,11 @@ impl<'a, T: 'a> CursorMut<'a, T> {
                 }
 
                 self.index += 1;
-            }
+            },
         }
     }
 
+    /// Inserts an element after the current position.
     pub fn insert_after(&mut self, element: T) {
         match self.current {
             None => {
@@ -655,7 +664,7 @@ impl<'a, T: 'a> CursorMut<'a, T> {
                         self.list.len += 1;
                     }
                 }
-            }
+            },
         }
     }
 }

@@ -16,15 +16,6 @@ type Link<T> = Option<NonNull<Node<T>>>;
 /// - `element`: The value stored in the node.
 /// - `next`: A pointer to the next node in the list, or `None` if there is no next node.
 /// - `prev`: A pointer to the previous node in the list, or `None` if there is no previous node.
-///
-/// # Example
-/// ```
-/// let node = Node {
-///     element: 42,
-///     next: None,
-///     prev: None,
-/// };
-/// ```
 #[derive(Debug)]
 struct Node<T> {
     element: T,
@@ -45,6 +36,8 @@ struct Node<T> {
 ///
 /// # Example
 /// ```
+/// use linked_list::LinkedList;
+/// 
 /// let mut list = LinkedList::new();
 /// list.push_front(1);
 /// list.push_back(2);
@@ -80,6 +73,8 @@ pub struct IntoIter<T> {
 ///
 /// # Example
 /// ```
+/// use linked_list::LinkedList;
+/// 
 /// let list = LinkedList::new();
 /// let mut iter = list.iter();
 /// ```
@@ -114,7 +109,9 @@ pub struct IterMut<'a, T: 'a> {
 ///
 /// # Example
 /// ```
-/// let list = LinkedList::new();
+/// use linked_list::LinkedList;
+/// 
+/// let mut list = LinkedList::new();
 /// let mut cursor = list.cursor();
 /// ```
 pub struct Cursor<'a, T: 'a> {
@@ -135,6 +132,8 @@ pub struct Cursor<'a, T: 'a> {
 ///
 /// # Example
 /// ```
+/// use linked_list::LinkedList;
+/// 
 /// let mut list = LinkedList::new();
 /// let mut cursor = list.cursor_mut();
 /// ```

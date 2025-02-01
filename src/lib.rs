@@ -200,7 +200,15 @@ impl<T> Node<T> {
 ///
 /// This linked list allows insertion and deletion from both ends in constant time.
 impl<T> LinkedList<T> {
-    /// Creates a new empty linked list.
+    /// Creates a new empty `LinkedList`.
+    ///
+    /// # Example
+    /// ```
+    /// use linked_list::LinkedList;
+    /// 
+    /// let list: LinkedList<i32> = LinkedList::new();
+    /// assert!(list.is_empty());
+    /// ```
     #[inline]
     pub fn new() -> Self {
         Self {
@@ -211,13 +219,30 @@ impl<T> LinkedList<T> {
         }
     }
 
-    /// Returns the number of elements in the linked list.
+    //// Returns the number of elements in the list.
+    ///
+    /// # Example
+    /// ```
+    /// use linked_list::LinkedList;
+    /// 
+    /// let mut list = LinkedList::new();
+    /// list.push_back(1);
+    /// assert_eq!(list.len(), 1);
+    /// ```
     #[inline]
     pub fn len(&self) -> usize {
         self.len
     }
 
-    /// Returns `true` if the linked list contains no elements.
+    /// Returns `true` if the list contains no elements.
+    ///
+    /// # Example
+    /// ```
+    /// use linked_list::LinkedList;
+    /// 
+    /// let list: LinkedList<i32> = LinkedList::new();
+    /// assert!(list.is_empty());
+    /// ```
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.len == 0
@@ -244,10 +269,19 @@ impl<T> LinkedList<T> {
         self.len += 1;
     }
 
-    /// Adds an element to the back of the list.
+    /// Adds an element to the front of the list.
     ///
     /// # Arguments
-    /// * `value` - The value to insert at the back.
+    /// * `value` - The value to insert at the front.
+    ///
+    /// # Example
+    /// ```
+    /// use linked_list::LinkedList;
+    /// 
+    /// let mut list = LinkedList::new();
+    /// list.push_front(10);
+    /// assert_eq!(list.front(), Some(&10));
+    /// ```
     pub fn push_back(&mut self, value: T) {
         let new_tail = NonNull::from(Box::leak(Box::new(Node::new(value))));
 
@@ -265,7 +299,18 @@ impl<T> LinkedList<T> {
         self.len += 1;
     }
 
-    /// Removes and returns the element from the front of the list.
+    /// Adds an element to the back of the list.
+    ///
+    /// # Arguments
+    /// * `value` - The value to insert at the back.
+    ///
+    /// # Example
+    /// ```
+    /// use linked_list::LinkedList;
+    /// 
+    /// let mut list = LinkedList::new();
+    /// list.push_back(20);
+    /// assert_eq!(list.back(), Some(&20));
     pub fn pop_front(&mut self) -> Option<T> {
         self.head.take().map(|old_head| unsafe {
             let mut old_head = Box::from_raw(old_head.as_ptr());
@@ -286,7 +331,21 @@ impl<T> LinkedList<T> {
         })
     }
 
-    /// Removes and returns the element from the back of the list.
+    /// Removes and returns the first element of the list, if any.
+    ///
+    /// # Returns
+    /// - `Some(T)` if the list was not empty.
+    /// - `None` if the list was empty.
+    ///
+    /// # Example
+    /// ```
+    /// use linked_list::LinkedList;
+    /// 
+    /// let mut list = LinkedList::new();
+    /// list.push_front(5);
+    /// assert_eq!(list.pop_front(), Some(5));
+    /// assert!(list.is_empty());
+    /// ```
     pub fn pop_back(&mut self) -> Option<T> {
         self.tail.take().map(|old_tail| unsafe {
             let mut old_tail = Box::from_raw(old_tail.as_ptr());
@@ -308,6 +367,15 @@ impl<T> LinkedList<T> {
     }
 
     /// Returns a reference to the first element of the list, if any.
+    ///
+    /// # Example
+    /// ```
+    /// use linked_list::LinkedList;
+    /// 
+    /// let mut list = LinkedList::new();
+    /// list.push_front(3);
+    /// assert_eq!(list.front(), Some(&3));
+    /// ```
     #[inline]
     pub fn front(&self) -> Option<&T> {
         self.head.map(|node| unsafe { &(*node.as_ptr()).element })
@@ -321,6 +389,15 @@ impl<T> LinkedList<T> {
     }
 
     /// Returns a reference to the last element of the list, if any.
+    ///
+    /// # Example
+    /// ```
+    /// use linked_list::LinkedList;
+    /// 
+    /// let mut list = LinkedList::new();
+    /// list.push_back(8);
+    /// assert_eq!(list.back(), Some(&8));
+    /// ```
     #[inline]
     pub fn back(&self) -> Option<&T> {
         self.tail.map(|node| unsafe { &(*node.as_ptr()).element })
@@ -333,13 +410,38 @@ impl<T> LinkedList<T> {
             .map(|node| unsafe { &mut (*node.as_ptr()).element })
     }
 
-    /// Clears the data of the `LinkedList`.
+    /// Clears all elements from the `LinkedList`.
+    ///
+    /// # Example
+    /// ```
+    /// use linked_list::LinkedList;
+    /// 
+    /// let mut list = LinkedList::new();
+    /// list.push_back(10);
+    /// list.clear();
+    /// assert!(list.is_empty());
+    /// ```
     #[inline]
     pub fn clear(&mut self) {
         while self.pop_back().is_some() {}
     }
 
     /// Returns an iterator over the elements of the list.
+    ///
+    /// # Example
+    /// ```
+    /// use linked_list::LinkedList;
+    /// 
+    /// let mut list = LinkedList::new();
+    /// list.push_back(1);
+    /// list.push_back(2);
+    /// let mut iter = list.iter();
+    /// assert_eq!(iter.next(), Some(&1));
+    /// assert_eq!(iter.next(), Some(&2));
+    /// assert_eq!(iter.next(), None);
+    /// ```
+    /// # Returns
+    /// A ['Iter<T>'] immutable iterator for iterate over the values of the linked list
     #[inline]
     pub fn iter(&self) -> Iter<T> {
         Iter {
@@ -351,6 +453,23 @@ impl<T> LinkedList<T> {
     }
 
     /// Returns a mutable iterator over the elements of the list.
+    ///
+    /// # Example
+    /// ```
+    /// use linked_list::LinkedList;
+    /// 
+    /// let mut list = LinkedList::new();
+    /// list.push_back(1);
+    /// list.push_back(2);
+    /// for elem in list.iter_mut() {
+    ///     *elem += 10;
+    /// }
+    /// let mut iter = list.iter();
+    /// assert_eq!(iter.next(), Some(&11));
+    /// assert_eq!(iter.next(), Some(&12));
+    /// ```
+    /// # Returns
+    /// A ['IterMut<T>'] mutable iterator for iterate over the values of the linked list
     #[inline]
     pub fn iter_mut(&mut self) -> IterMut<T> {
         IterMut {
@@ -361,6 +480,20 @@ impl<T> LinkedList<T> {
         }
     }
 
+    /// Returns a cursor positioned at the front of the list for immutable traversal.
+    ///
+    /// The returned [`Cursor`] allows iteration over the list without modifying it.
+    ///
+    /// # Example
+    /// ```
+    /// use linked_list::LinkedList;
+    ///
+    /// let mut list: LinkedList<i32> = LinkedList::new();
+    /// let cursor = list.cursor_front();
+    /// ```
+    ///
+    /// # Returns
+    /// A [`Cursor`] positioned at the first element of the list, or an empty cursor if the list is empty.
     #[inline]
     pub fn cursor_front(&mut self) -> Cursor<T> {
         Cursor {
@@ -370,6 +503,20 @@ impl<T> LinkedList<T> {
         }
     }
 
+    /// Returns a cursor positioned at the back of the list for immutable traversal.
+    ///
+    /// The returned [`Cursor`] allows backward traversal over the list without modifying it.
+    ///
+    /// # Example
+    /// ```
+    /// use linked_list::LinkedList;
+    ///
+    /// let mut list: LinkedList<i32> = LinkedList::new();
+    /// let cursor = list.cursor_back();
+    /// ```
+    ///
+    /// # Returns
+    /// A [`Cursor`] positioned at the last element of the list, or an empty cursor if the list is empty.
     #[inline]
     pub fn cursor_back(&mut self) -> Cursor<T> {
         Cursor {
@@ -379,6 +526,19 @@ impl<T> LinkedList<T> {
         }
     }
 
+    /// Returns a cursor positioned at the front of the list for mutable traversal.
+    ///
+    /// The returned [`CursorMut`] allows iterating over and modifying the elements of the list.
+    ///
+    /// # Example
+    /// ```
+    /// use linked_list::LinkedList;
+    /// let mut list: LinkedList<i32> = LinkedList::new();
+    /// let mut cursor = list.cursor_front_mut();
+    /// ```
+    ///
+    /// # Returns
+    /// A [`CursorMut`] positioned at the first element of the list, or an empty cursor if the list is empty.
     #[inline]
     pub fn cursor_front_mut(&mut self) -> CursorMut<T> {
         CursorMut {
@@ -388,6 +548,19 @@ impl<T> LinkedList<T> {
         }
     }
 
+    /// Returns a cursor positioned at the back of the list for mutable traversal.
+    ///
+    /// The returned [`CursorMut`] allows backward traversal and modification of the list.
+    ///
+    /// # Example
+    /// ```
+    /// use linked_list::LinkedList;
+    /// let mut list: LinkedList<i32> = LinkedList::new();
+    /// let mut cursor = list.cursor_back_mut();
+    /// ```
+    ///
+    /// # Returns
+    /// A [`CursorMut`] positioned at the last element of the list, or an empty cursor if the list is empty.
     #[inline]
     pub fn cursor_back_mut(&mut self) -> CursorMut<T> {
         CursorMut {
@@ -395,6 +568,37 @@ impl<T> LinkedList<T> {
             current: self.tail,
             list: self,
         }
+    }
+
+    /// Checks whether the linked list contains the specified element.
+    ///
+    /// This method iterates over the list and returns `true` if any element is equal to `value`.
+    ///
+    /// # Example
+    /// ```
+    /// use linked_list::LinkedList;
+    /// 
+    /// let mut list = LinkedList::new();
+    /// 
+    /// list.push_back(1);
+    /// list.push_back(2);
+    /// list.push_back(3);
+    ///
+    /// assert!(list.contains(&2));
+    /// assert!(!list.contains(&4));
+    /// ```
+    ///
+    /// # Parameters
+    /// - `value`: A reference to the element to search for.
+    ///
+    /// # Returns
+    /// - `true` if the list contains the given element.
+    /// - `false` otherwise.
+    ///
+    /// # Complexity
+    /// - **O(n)** in the worst case, where *n* is the length of the list.
+    pub fn contains(&self, value: &T) -> bool where T: PartialEq<T> {
+        self.iter().any(|current| current == value)
     }
 }
 
@@ -1187,5 +1391,35 @@ mod tests {
 
         let values = list.into_iter().collect::<Vec<i32>>();
         assert_eq!(values, vec![1, 2, 3]);
+    }
+    
+    #[test]
+    fn test_cursor_mut_insert_before_when_list_is_empty() {
+        let mut list = LinkedList::new();
+        let mut cursor = list.cursor_front_mut();
+        
+        cursor.insert_before(1);
+        let values = list.into_iter().collect::<Vec<i32>>();
+        assert_eq!(values, vec![1]);
+    }
+
+    #[test]
+    fn test_cursor_mut_insert_after_when_list_is_empty() {
+        let mut list = LinkedList::new();
+        let mut cursor = list.cursor_front_mut();
+
+        cursor.insert_after(1);
+        let values = list.into_iter().collect::<Vec<i32>>();
+        assert_eq!(values, vec![1]);
+    }
+    
+    #[test]
+    fn test_cursor_mut_delete_when_list_has_only_one_element() {
+        let mut list = LinkedList::from([1]);
+        let mut cursor = list.cursor_front_mut();
+        
+        cursor.delete();
+        
+        assert!(list.is_empty());
     }
 }

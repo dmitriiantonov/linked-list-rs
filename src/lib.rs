@@ -248,6 +248,11 @@ impl<T> LinkedList<T> {
     pub fn cursor(&mut self) -> Cursor<T> {
         Cursor::new(self)
     }
+
+    #[inline]
+    pub fn cursor_mut(&mut self) -> CursorMut<T> {
+        CursorMut::new(self)
+    }
 }
 
 impl<T> Default for LinkedList<T> {
@@ -374,7 +379,7 @@ impl<'a, T: 'a> Cursor<'a, T> {
     }
 
     #[inline]
-    pub fn current(&self) -> Option<&T> {
+    pub fn current(&mut self) -> Option<&'a T> {
         self.current
             .map(|node| unsafe { &(*node.as_ptr()).element })
     }
@@ -405,8 +410,7 @@ impl<'a, T: 'a> Cursor<'a, T> {
         }
     }
 
-
-    pub fn peek_next(&self) -> Option<&T> {
+    pub fn peek_next(&self) -> Option<&'a T> {
         unsafe {
             let next = match self.current {
                 None => self.list.head,
@@ -416,14 +420,169 @@ impl<'a, T: 'a> Cursor<'a, T> {
         }
     }
 
-
-    pub fn peek_prev(&self) -> Option<&T> {
+    pub fn peek_prev(&self) -> Option<&'a T> {
         unsafe {
             let prev = match self.current {
                 None => self.list.tail,
                 Some(current) => current.as_ref().prev,
             };
             prev.map(|node| &(*node.as_ptr()).element)
+        }
+    }
+}
+
+impl<'a, T: 'a> CursorMut<'a, T> {
+    #[inline]
+    pub fn new(list: &'a mut LinkedList<T>) -> Self {
+        Self {
+            index: 0,
+            current: None,
+            list,
+        }
+    }
+
+    #[inline]
+    pub fn index(&mut self) -> Option<usize> {
+        let _ = self.current?;
+        Some(self.index)
+    }
+
+    #[inline]
+    pub fn current(&mut self) -> Option<&'a mut T> {
+        self.current
+            .map(|node| unsafe { &mut (*node.as_ptr()).element })
+    }
+
+    pub fn move_next(&mut self) {
+        match self.current {
+            None => {
+                self.current = self.list.head;
+                self.index = 0;
+            }
+            Some(current) => unsafe {
+                self.current = current.as_ref().next;
+                self.index += 1;
+            },
+        }
+    }
+
+    pub fn move_prev(&mut self) {
+        match self.current {
+            None => {
+                self.current = self.list.tail;
+                self.index = self.list.len().saturating_sub(1)
+            }
+            Some(current) => unsafe {
+                self.current = current.as_ref().prev;
+                self.index = self.index.saturating_sub(1)
+            },
+        }
+    }
+
+    pub fn peek_next(&self) -> Option<&'a mut T> {
+        unsafe {
+            let next = match self.current {
+                None => self.list.head,
+                Some(current) => current.as_ref().next,
+            };
+
+            next.map(|node| &mut (*node.as_ptr()).element)
+        }
+    }
+
+    pub fn peek_prev(&self) -> Option<&'a mut T> {
+        unsafe {
+            let prev = match self.current {
+                None => self.list.tail,
+                Some(current) => current.as_ref().prev,
+            };
+
+            prev.map(|node| &mut (*node.as_ptr()).element)
+        }
+    }
+
+    pub fn delete(&mut self) -> Option<T> {
+        unsafe {
+            self.current.map(|node| {
+                let current = Box::from_raw(node.as_ptr());
+                let prev = current.prev;
+                let next = current.next;
+
+                match prev {
+                    None => {
+                        self.list.head = next;
+                    }
+                    Some(prev) => {
+                        (*prev.as_ptr()).next = next;
+                    }
+                }
+
+                if let Some(next) = next {
+                    (*next.as_ptr()).prev = prev
+                }
+
+                self.current = next;
+                
+                if next.is_none() {
+                    self.list.tail = prev;
+                }
+
+                self.current = next;
+
+                current.element
+            })
+        }
+    }
+    
+    pub fn insert_before(&mut self, element: T) {
+        match self.current {
+            None => {
+                self.list.push_front(element);
+            }
+            Some(current) => unsafe {
+                let prev = current.as_ref().prev;
+                
+                match prev {
+                    None => {
+                        self.list.push_front(element);
+                    }
+                    Some(prev) => {
+                        let node = NonNull::from(Box::leak(Box::new(Node::new(element))));
+                        (*prev.as_ptr()).next = Some(node);
+                        (*node.as_ptr()).prev = Some(prev);
+                        (*node.as_ptr()).next = Some(current);
+                        (*current.as_ptr()).prev = Some(node);
+                        self.list.len += 1;
+                    }
+                }
+                
+                self.index += 1;
+            }
+        }
+    }
+    
+    pub fn insert_after(&mut self, element: T) {
+        match self.current {
+            None => {
+                self.list.push_back(element);
+            }
+            Some(current) => unsafe {
+                let next = current.as_ref().next;
+                
+                match next {
+                    None => {
+                        self.list.push_back(element);
+                    }
+                    Some(next) => {
+                        let node = NonNull::from(Box::leak(Box::new(Node::new(element))));
+                        (*current.as_ptr()).next = Some(node);
+                        (*node.as_ptr()).prev = Some(current);
+                        (*node.as_ptr()).next = Some(next);
+                        (*next.as_ptr()).prev = Some(node);
+                        self.list.len += 1;
+                    }
+                }
+            }
         }
     }
 }
@@ -604,57 +763,338 @@ mod tests {
     }
 
     #[test]
-    fn test_cursor() {
+    fn test_cursor_move_next() {
         let mut list = LinkedList::from([1, 2, 3]);
         let mut cursor = list.cursor();
 
-        assert_eq!(cursor.current(), None);
-
-        assert_eq!(cursor.peek_next(), Some(&1));
+        assert_eq!(cursor.current, None);
+        assert_eq!(cursor.index(), None);
 
         cursor.move_next();
 
         assert_eq!(cursor.current(), Some(&1));
         assert_eq!(cursor.index(), Some(0));
 
-        assert_eq!(cursor.peek_next(), Some(&2));
-
         cursor.move_next();
 
         assert_eq!(cursor.current(), Some(&2));
         assert_eq!(cursor.index(), Some(1));
 
-        assert_eq!(cursor.peek_next(), Some(&3));
-
         cursor.move_next();
 
         assert_eq!(cursor.current(), Some(&3));
         assert_eq!(cursor.index(), Some(2));
-        
-        assert_eq!(cursor.peek_next(), None);
 
         cursor.move_next();
+
         assert_eq!(cursor.current(), None);
-        
-        assert_eq!(cursor.peek_prev(), Some(&3));
+        assert_eq!(cursor.index(), None);
+    }
+
+    #[test]
+    fn test_cursor_move_back() {
+        let mut list = LinkedList::from([1, 2, 3]);
+        let mut cursor = list.cursor();
+
+        assert_eq!(cursor.current, None);
+        assert_eq!(cursor.index(), None);
 
         cursor.move_prev();
 
         assert_eq!(cursor.current(), Some(&3));
         assert_eq!(cursor.index(), Some(2));
+        
+        cursor.move_prev();
+
+        assert_eq!(cursor.current(), Some(&2));
+        assert_eq!(cursor.index(), Some(1));
+        
+        cursor.move_prev();
+
+        assert_eq!(cursor.current(), Some(&1));
+        assert_eq!(cursor.index(), Some(0));
+        
+        cursor.move_prev();
+        
+        assert_eq!(cursor.current(), None);
+        assert_eq!(cursor.index(), None);
+    }
+    
+    #[test]
+    fn test_cursor_peek_next() {
+        let mut list = LinkedList::from([1, 2, 3]);
+        let mut cursor = list.cursor();
+        
+        assert_eq!(cursor.peek_next(), Some(&1));
+        
+        cursor.move_next();
+
+        assert_eq!(cursor.peek_next(), Some(&2));
+        
+        cursor.move_next();
+        
+        assert_eq!(cursor.peek_next(), Some(&3));
+        
+        cursor.move_next();
+        
+        assert_eq!(cursor.peek_next(), None);
+    }
+
+    #[test]
+    fn test_cursor_peek_prev() {
+        let mut list = LinkedList::from([1, 2, 3]);
+        let mut cursor = list.cursor();
+
+        assert_eq!(cursor.peek_prev(), Some(&3));
+
+        cursor.move_prev();
 
         assert_eq!(cursor.peek_prev(), Some(&2));
 
         cursor.move_prev();
 
-        assert_eq!(cursor.current(), Some(&2));
-        assert_eq!(cursor.index(), Some(1));
-
         assert_eq!(cursor.peek_prev(), Some(&1));
 
         cursor.move_prev();
 
-        assert_eq!(cursor.current(), Some(&1));
+        assert_eq!(cursor.peek_prev(), None);
+    }
+
+    #[test]
+    fn test_cursor_mut_move_next() {
+        let mut list = LinkedList::from([1, 2, 3]);
+        let mut cursor = list.cursor_mut();
+
+        assert_eq!(cursor.current, None);
+        assert_eq!(cursor.index(), None);
+
+        cursor.move_next();
+
+        assert_eq!(cursor.current(), Some(&mut 1));
         assert_eq!(cursor.index(), Some(0));
+
+        cursor.move_next();
+
+        assert_eq!(cursor.current(), Some(&mut 2));
+        assert_eq!(cursor.index(), Some(1));
+
+        cursor.move_next();
+
+        assert_eq!(cursor.current(), Some(&mut 3));
+        assert_eq!(cursor.index(), Some(2));
+
+        cursor.move_next();
+
+        assert_eq!(cursor.current(), None);
+        assert_eq!(cursor.index(), None);
+    }
+
+    #[test]
+    fn test_cursor_mut_move_back() {
+        let mut list = LinkedList::from([1, 2, 3]);
+        let mut cursor = list.cursor_mut();
+
+        assert_eq!(cursor.current, None);
+        assert_eq!(cursor.index(), None);
+
+        cursor.move_prev();
+
+        assert_eq!(cursor.current(), Some(&mut 3));
+        assert_eq!(cursor.index(), Some(2));
+
+        cursor.move_prev();
+
+        assert_eq!(cursor.current(), Some(&mut 2));
+        assert_eq!(cursor.index(), Some(1));
+
+        cursor.move_prev();
+
+        assert_eq!(cursor.current(), Some(&mut 1));
+        assert_eq!(cursor.index(), Some(0));
+
+        cursor.move_prev();
+
+        assert_eq!(cursor.current(), None);
+        assert_eq!(cursor.index(), None);
+    }
+
+    #[test]
+    fn test_cursor_mut_peek_next() {
+        let mut list = LinkedList::from([1, 2, 3]);
+        let mut cursor = list.cursor_mut();
+
+        assert_eq!(cursor.peek_next(), Some(&mut 1));
+
+        cursor.move_next();
+
+        assert_eq!(cursor.peek_next(), Some(&mut 2));
+
+        cursor.move_next();
+
+        assert_eq!(cursor.peek_next(), Some(&mut 3));
+
+        cursor.move_next();
+
+        assert_eq!(cursor.peek_next(), None);
+    }
+
+    #[test]
+    fn test_cursor_mut_peek_prev() {
+        let mut list = LinkedList::from([1, 2, 3]);
+        let mut cursor = list.cursor_mut();
+
+        assert_eq!(cursor.peek_prev(), Some(&mut 3));
+
+        cursor.move_prev();
+
+        assert_eq!(cursor.peek_prev(), Some(&mut 2));
+
+        cursor.move_prev();
+
+        assert_eq!(cursor.peek_prev(), Some(&mut 1));
+
+        cursor.move_prev();
+
+        assert_eq!(cursor.peek_prev(), None);
+    }
+    
+    #[test]
+    fn test_cursor_mut_delete_head() {
+        let mut list = LinkedList::from([1, 2, 3]);
+        let mut cursor = list.cursor_mut();
+        
+        cursor.move_next();
+        let deleted = cursor.delete();
+        
+        assert_eq!(deleted, Some(1));
+        
+        assert_eq!(cursor.current(), Some(&mut 2));
+        assert_eq!(cursor.index(), Some(0));
+        
+        let values = list.into_iter().collect::<Vec<_>>();
+        
+        assert_eq!(values, vec![2, 3]);
+    }
+    
+    #[test]
+    fn test_cursor_mut_delete_mid() {
+        let mut list = LinkedList::from([1, 2, 3]);
+        let mut cursor = list.cursor_mut();
+        
+        cursor.move_next();
+        cursor.move_next();
+        
+        let deleted = cursor.delete();
+        assert_eq!(deleted, Some(2));
+        
+        assert_eq!(cursor.current(), Some(&mut 3));
+        assert_eq!(cursor.index(), Some(1));
+
+        let values = list.into_iter().collect::<Vec<_>>();
+
+        assert_eq!(values, vec![1, 3]);
+    }
+    
+    #[test]
+    fn test_cursor_mut_delete_tail() {
+        let mut list = LinkedList::from([1, 2, 3]);
+        let mut cursor = list.cursor_mut();
+        
+        cursor.move_next();
+        cursor.move_next();
+        cursor.move_next();
+        
+        let deleted = cursor.delete();
+        assert_eq!(deleted, Some(3));
+        
+        assert_eq!(cursor.current(), None);
+
+        let values = list.into_iter().collect::<Vec<_>>();
+
+        assert_eq!(values, vec![1, 2]);
+    }
+    
+    #[test]
+    fn test_cursor_mut_insert_before_when_current_empty() {
+        let mut list = LinkedList::from([2, 3]);
+        let mut cursor = list.cursor_mut();
+        
+        cursor.insert_before(1);
+
+        let values = list.into_iter().collect::<Vec<_>>();
+
+        assert_eq!(values, vec![1, 2, 3]);
+    }
+    
+    #[test]
+    fn test_cursor_mut_insert_after_when_prev_empty() {
+        let mut list = LinkedList::from([2, 3]);
+        let mut cursor = list.cursor_mut();
+        
+        cursor.move_next();
+        
+        cursor.insert_before(1);
+        
+        assert_eq!(cursor.current(), Some(&mut 2));
+        assert_eq!(cursor.index(), Some(1));
+
+        let values = list.into_iter().collect::<Vec<_>>();
+
+        assert_eq!(values, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn test_cursor_mut_insert_before() {
+        let mut list = LinkedList::from([1, 3]);
+        let mut cursor = list.cursor_mut();
+
+        cursor.move_next();
+        cursor.move_next();
+
+        cursor.insert_before(2);
+
+        assert_eq!(cursor.current(), Some(&mut 3));
+        assert_eq!(cursor.index(), Some(2));
+        
+        let values = list.into_iter().collect::<Vec<_>>();
+        assert_eq!(values, vec![1, 2, 3]);
+    }
+    
+    #[test]
+    fn test_cursor_mut_insert_after_when_current_empty() {
+        let mut list = LinkedList::from([1, 2]);
+        let mut cursor = list.cursor_mut();
+        
+        cursor.insert_after(3);
+
+        let values = list.into_iter().collect::<Vec<i32>>();
+        assert_eq!(values, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn test_cursor_mut_insert_after_when_next_empty() {
+        let mut list = LinkedList::from([1, 2]);
+        let mut cursor = list.cursor_mut();
+        
+        cursor.move_next();
+        cursor.move_next();
+
+        cursor.insert_after(3);
+
+        let values = list.into_iter().collect::<Vec<i32>>();
+        assert_eq!(values, vec![1, 2, 3]);
+    }
+    
+    #[test]
+    fn test_cursor_mut_insert_after() {
+        let mut list = LinkedList::from([1, 3]);
+        let mut cursor = list.cursor_mut();
+
+        cursor.move_next();
+
+        cursor.insert_after(2);
+
+        let values = list.into_iter().collect::<Vec<i32>>();
+        assert_eq!(values, vec![1, 2, 3]);
     }
 }
